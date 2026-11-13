@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>Badger Grand Prix</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
+    <script type="importmap">
+      { "imports": { "three": "./vendor/three.module.min.js" } }
+    </script>
+  </head>
+  <body>
+    <canvas id="gl"></canvas>
+    <div id="vignette" class="hidden"></div>
+    <canvas id="hud"></canvas>
+    <div id="loading"><div><b>BADGER GRAND PRIX</b><span>LOADING TRACK</span></div></div>
+
+    <section id="title" class="screen">
+      <div class="panel">
+        <div class="kicker">MADISON CIRCUIT</div>
+        <h1>BADGER <span>GRAND PRIX</span></h1>
+        <p class="tag">Pick a racer. Grab items. Take first place.</p>
+        <div class="row">
+          <label>Players</label>
+          <div class="seg" id="players">
+            <button data-v="1" class="on">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button>
+          </div>
+        </div>
+        <div class="row">
+          <label>Difficulty</label>
+          <div class="seg" id="difficulty">
+            <button data-v="easy">Easy</button><button data-v="normal" class="on">Normal</button><button data-v="hard">Hard</button>
+          </div>
+        </div>
+        <div class="row">
+          <label>Laps</label>
+          <div class="seg" id="laps">
+            <button data-v="2">2</button><button data-v="3" class="on">3</button><button data-v="5">5</button>
+          </div>
+        </div>
+        <div class="row">
+          <label>Graphics</label>
+          <div class="seg" id="quality">
+            <button data-v="auto" class="on">Auto</button><button data-v="low">Low</button><button data-v="medium">Med</button><button data-v="high">High</button>
+          </div>
+        </div>
+        <button class="go" id="toSetup">CHOOSE RACERS ▸</button>
+        <p class="hint" id="controlsHint"></p>
+      </div>
+    </section>
+
+    <section id="setup" class="screen hidden">
+      <div class="panel wide">
+        <div class="kicker" id="setupSteps">1 / 2 RACER + KART</div>
+        <h2 id="setupTitle">PICK YOUR RACER</h2>
+        <p class="boost-tip"><b>GOLD ARROWS = SPEED BOOST.</b> Drive over them. Your blue boost bar also refills on its own.</p>
+        <div class="cols">
+          <div id="cards"></div>
+          <div id="fieldBox">
+            <h3>Today's rivals <small id="pollNote"></small></h3>
+            <ul id="field"></ul>
+            <button class="ghost" id="reroll">↻ New rivals</button>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="ghost" id="back">◂ Back</button>
+          <button class="ghost hidden" id="tiltBtn">📱 Enable tilt steering</button>
+          <button class="go" id="start">START RACE ▸</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="results" class="screen hidden">
+      <div class="panel">
+        <h2 id="resultTitle"></h2>
+        <ol id="standings"></ol>
+        <div class="actions">
+          <button class="ghost" id="menu">Main menu</button>
+          <button class="go" id="again">RACE AGAIN ▸</button>
+        </div>
+      </div>
+    </section>
+
+    <div id="touch" class="hidden">
+      <button data-act="left" class="tl">◀</button>
+      <button data-act="right" class="tl2">▶</button>
+      <button data-act="brake" class="tr4">BRAKE</button>
+      <button data-act="drift" class="tr3">DRIFT</button>
+      <button data-act="nitro" class="tr2">BOOST</button>
+      <button data-act="item" class="tr1">ITEM</button>
+    </div>
+
+    <script type="module" src="src/main.js"></script>
+  </body>
+</html>
