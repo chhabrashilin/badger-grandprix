@@ -1,6 +1,6 @@
 // Precache the HD shell so repeat visits skip network stalls, then keep
 // game files network-first so edits still show up.
-const CACHE = 'badger-gp-hd-v3';
+const CACHE = 'badger-gp-hd-v4';
 const PRECACHE = [
   './',
   './index.html',

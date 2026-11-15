@@ -151,14 +151,17 @@ export class Track {
   groundY(x, z, d = this.distToCentre(x, z)) {
     const hill = smooth((d - 120) / 170) * (fbm(x * 0.006 + 5, z * 0.006 + 9) * 58 - 9);
     const shore = smooth((-36 - x) / 44);
-    return hill * (1 - shore) - shore * 7 - 0.07;
+    // Sink a trench under the asphalt so grass never z-fights through the road.
+    const trench = smooth((WALL + 4 - d) / 5) * 0.55;
+    return hill * (1 - shore) - shore * 7 - 0.07 - trench;
   }
 
   /** Ribbon following the track between two lateral offsets. */
-  ribbon(a, ya, b, yb, vTile) {
+  ribbon(a, ya, b, yb, vTile, { up = false } = {}) {
     const n = this.N;
     const pos = [];
     const uv = [];
+    const nor = [];
     const idx = [];
     for (let k = 0; k <= n; k++) {
       const i = k % n;
@@ -166,13 +169,18 @@ export class Track {
       pos.push(this.px[i] + this.nx[i] * b, yb, this.pz[i] + this.nz[i] * b);
       const v = (k * this.segLen) / vTile;
       uv.push(0, v, 1, v);
-      if (k < n) idx.push(2 * k, 2 * k + 1, 2 * k + 2, 2 * k + 1, 2 * k + 3, 2 * k + 2);
+      if (up) nor.push(0, 1, 0, 0, 1, 0);
+      if (k < n) {
+        if (up) idx.push(2 * k, 2 * k + 2, 2 * k + 1, 2 * k + 1, 2 * k + 2, 2 * k + 3);
+        else idx.push(2 * k, 2 * k + 1, 2 * k + 2, 2 * k + 1, 2 * k + 3, 2 * k + 2);
+      }
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     g.setIndex(idx);
-    g.computeVertexNormals();
+    if (up) g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    else g.computeVertexNormals();
     return g;
   }
 
@@ -195,90 +203,172 @@ export class Track {
 
     this.buildTerrain(g);
 
-    // ---- Road surface (dense asphalt grain + bump for glancing light)
+    // ---- Road surface: dense asphalt that reads as pavement, not grass
     const asphalt = tex(1024, 2048, (c, w, h) => {
-      c.fillStyle = '#2a2c32';
+      c.fillStyle = '#2c2e34';
       c.fillRect(0, 0, w, h);
-      for (let i = 0; i < 52000; i++) {
-        const v = 32 + Math.floor(rand(42));
-        c.fillStyle = `rgb(${v},${v + 1},${v + 4})`;
-        c.fillRect(rand(w), rand(h), rand(1, 2.5), rand(1, 2.5));
+      const img = c.getImageData(0, 0, w, h);
+      const d = img.data;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const i = (y * w + x) * 4;
+          const n = fbm(x * 0.35, y * 0.35, 3);
+          const n2 = fbm(x * 1.1 + 20, y * 1.1, 2);
+          const chip = (n2 > 0.62 ? 28 : 0) + (n2 < 0.22 ? -18 : 0);
+          const v = 38 + n * 42 + chip + (Math.sin(x * 0.04 + y * 0.01) * 3);
+          d[i] = v;
+          d[i + 1] = v + 1;
+          d[i + 2] = v + 4;
+        }
       }
-      // Micro chips for photoreal grit under sun
-      for (let i = 0; i < 8000; i++) {
-        const v = 55 + Math.floor(rand(40));
-        c.fillStyle = `rgba(${v},${v + 2},${v + 6},0.55)`;
-        c.fillRect(rand(w), rand(h), 1, 1);
-      }
+      c.putImageData(img, 0, 0);
       const worn = c.createLinearGradient(0, 0, w, 0);
-      worn.addColorStop(0.12, 'rgba(0,0,0,0)');
-      worn.addColorStop(0.5, 'rgba(0,0,0,.28)');
-      worn.addColorStop(0.88, 'rgba(0,0,0,0)');
+      worn.addColorStop(0.08, 'rgba(0,0,0,0)');
+      worn.addColorStop(0.35, 'rgba(8,8,10,.18)');
+      worn.addColorStop(0.5, 'rgba(0,0,0,.38)');
+      worn.addColorStop(0.65, 'rgba(8,8,10,.18)');
+      worn.addColorStop(0.92, 'rgba(0,0,0,0)');
       c.fillStyle = worn;
       c.fillRect(0, 0, w, h);
-      c.strokeStyle = 'rgba(8,8,10,.32)';
-      for (let i = 0; i < 14; i++) {
-        c.lineWidth = rand(2, 6);
-        const x = rand(w * 0.18, w * 0.82);
+      c.strokeStyle = 'rgba(6,6,8,.4)';
+      for (let i = 0; i < 18; i++) {
+        c.lineWidth = rand(1.5, 5);
+        const x = rand(w * 0.15, w * 0.85);
         const y = rand(h);
         c.beginPath();
         c.moveTo(x, y);
-        c.bezierCurveTo(x + rand(-24, 24), y + 140, x + rand(-36, 36), y + 280, x + rand(-48, 48), y + 420);
+        c.bezierCurveTo(x + rand(-18, 18), y + 160, x + rand(-30, 30), y + 320, x + rand(-40, 40), y + 520);
         c.stroke();
       }
-      c.fillStyle = '#f7f7f4';
-      c.fillRect(w * 0.03, 0, w * 0.012, h);
-      c.fillRect(w * 0.958, 0, w * 0.012, h);
+      c.strokeStyle = 'rgba(12,12,14,.55)';
+      c.lineWidth = 1.2;
+      for (let i = 0; i < 10; i++) {
+        const x = rand(w * 0.1, w * 0.9);
+        let y = rand(h);
+        c.beginPath();
+        c.moveTo(x, y);
+        for (let s = 0; s < 6; s++) {
+          y += rand(40, 90);
+          c.lineTo(x + rand(-22, 22), y);
+        }
+        c.stroke();
+      }
+      c.fillStyle = '#f4f4f0';
+      c.fillRect(w * 0.028, 0, w * 0.016, h);
+      c.fillRect(w * 0.956, 0, w * 0.016, h);
       c.fillStyle = '#ffd040';
-      for (let y = 0; y < h; y += h * 0.08) c.fillRect(w / 2 - w * 0.006, y, w * 0.012, h * 0.045);
+      const dash = h * 0.05;
+      const gap = h * 0.035;
+      for (let y = 0; y < h; y += dash + gap) c.fillRect(w / 2 - w * 0.007, y, w * 0.014, dash);
     });
     asphalt.anisotropy = 8;
-    asphalt.wrapS = asphalt.wrapT = THREE.RepeatWrapping;
     const asphaltBump = tex(512, 1024, (c, w, h) => {
-      c.fillStyle = '#808080';
-      c.fillRect(0, 0, w, h);
-      for (let i = 0; i < 28000; i++) {
-        const v = 90 + Math.floor(rand(70));
-        c.fillStyle = `rgb(${v},${v},${v})`;
-        c.fillRect(rand(w), rand(h), rand(1, 2), rand(1, 2));
+      const img = c.createImageData(w, h);
+      const d = img.data;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const i = (y * w + x) * 4;
+          const v = 110 + fbm(x * 0.55, y * 0.55, 3) * 90;
+          d[i] = d[i + 1] = d[i + 2] = v;
+          d[i + 3] = 255;
+        }
       }
+      c.putImageData(img, 0, 0);
     });
     asphaltBump.anisotropy = 4;
     asphaltBump.colorSpace = THREE.NoColorSpace;
-    // Standard material so bump + env catch sun like a real road surface.
-    const roadMat = new THREE.MeshStandardMaterial({
-      map: asphalt, bumpMap: asphaltBump, bumpScale: 0.35,
-      roughness: 0.72, metalness: 0.08, envMapIntensity: 0.55,
+    const asphaltRough = tex(512, 1024, (c, w, h) => {
+      const img = c.createImageData(w, h);
+      const d = img.data;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const i = (y * w + x) * 4;
+          const edge = Math.abs(x / w - 0.5) * 2;
+          const v = 150 + fbm(x * 0.2, y * 0.2, 2) * 60 - (1 - edge) * 35;
+          d[i] = d[i + 1] = d[i + 2] = v;
+          d[i + 3] = 255;
+        }
+      }
+      c.putImageData(img, 0, 0);
     });
-    strip(this.ribbon(-ROAD_HALF, 0.02, ROAD_HALF, 0.02, 24), roadMat);
+    asphaltRough.colorSpace = THREE.NoColorSpace;
+    const roadMat = new THREE.MeshStandardMaterial({
+      map: asphalt,
+      bumpMap: asphaltBump,
+      bumpScale: 0.55,
+      roughnessMap: asphaltRough,
+      roughness: 0.85,
+      metalness: 0.04,
+      envMapIntensity: 0.4,
+      side: THREE.DoubleSide,
+    });
+    strip(this.ribbon(-ROAD_HALF, 0.08, ROAD_HALF, 0.08, 18, { up: true }), roadMat);
+
+    // Runoff shoulder between asphalt and barriers
+    const shoulder = tex(256, 512, (c, w, h) => {
+      c.fillStyle = '#3a3c40';
+      c.fillRect(0, 0, w, h);
+      for (let i = 0; i < 12000; i++) {
+        const v = 40 + Math.floor(rand(50));
+        c.fillStyle = `rgb(${v},${v - 2},${v - 4})`;
+        c.fillRect(rand(w), rand(h), rand(1, 3), rand(1, 3));
+      }
+    });
+    const shoulderMat = new THREE.MeshStandardMaterial({
+      map: shoulder, roughness: 0.92, metalness: 0.02, side: THREE.DoubleSide,
+    });
+    strip(mergeGeometries([-1, 1].map((s) => this.ribbon(
+      s * ROAD_HALF, 0.05, s * (WALL - 0.2), 0.05, 14, { up: true },
+    ))), shoulderMat);
 
     // ---- Kerbs
-    const kerb = tex(64, 128, (c, w, h) => {
-      c.fillStyle = '#d2101a';
+    const kerb = tex(128, 256, (c, w, h) => {
+      c.fillStyle = '#c5050c';
       c.fillRect(0, 0, w, h / 2);
-      c.fillStyle = '#f7f7f4';
+      c.fillStyle = '#f2f2ef';
       c.fillRect(0, h / 2, w, h / 2);
-      c.fillStyle = 'rgba(0,0,0,.12)';
-      c.fillRect(0, h / 2 - 2, w, 4);
-      c.fillRect(0, h - 2, w, 2);
+      c.fillStyle = 'rgba(0,0,0,.14)';
+      for (let i = 0; i < 80; i++) c.fillRect(rand(w), rand(h), rand(2, 8), 1);
+      c.fillStyle = 'rgba(0,0,0,.18)';
+      c.fillRect(0, h / 2 - 3, w, 5);
+      c.fillRect(0, h - 3, w, 3);
+      c.fillStyle = 'rgba(255,255,255,.12)';
+      c.fillRect(0, 2, w, 4);
     });
-    const kerbMat = two({ map: kerb, roughness: 0.6 });
-    strip(mergeGeometries([-1, 1].map((s) => this.ribbon(s * ROAD_HALF, 0.03, s * (ROAD_HALF + 1.4), 0.12, 5))), kerbMat);
+    const kerbMat = new THREE.MeshStandardMaterial({
+      map: kerb, roughness: 0.55, metalness: 0.05, side: THREE.DoubleSide, envMapIntensity: 0.25,
+    });
+    strip(mergeGeometries([-1, 1].map((s) => this.ribbon(
+      s * ROAD_HALF, 0.09, s * (ROAD_HALF + 1.5), 0.22, 4, { up: true },
+    ))), kerbMat);
 
     // ---- Barriers: a solid profile (inner face, cap, outer face)
-    const wallTex = tex(128, 256, (c, w, h) => {
-      c.fillStyle = '#eef0f2';
+    const wallTex = tex(256, 512, (c, w, h) => {
+      c.fillStyle = '#e8eaee';
       c.fillRect(0, 0, w, h);
+      // Concrete speckles
+      for (let i = 0; i < 6000; i++) {
+        const v = 200 + Math.floor(rand(40));
+        c.fillStyle = `rgba(${v},${v},${v + 2},0.55)`;
+        c.fillRect(rand(w), rand(h), rand(1, 2), rand(1, 2));
+      }
       c.fillStyle = '#c5050c';
-      c.fillRect(w * 0.22, 0, w * 0.56, h / 2);
-      c.fillStyle = '#23262d';
-      c.fillRect(0, 0, w * 0.14, h);
-      c.fillStyle = 'rgba(0,0,0,.18)';
-      c.fillRect(0, 0, w, 3);
-      c.fillRect(0, h / 2, w, 3);
+      c.fillRect(w * 0.2, 0, w * 0.6, h / 2);
+      c.fillStyle = 'rgba(255,255,255,.12)';
+      c.fillRect(w * 0.2, 4, w * 0.6, 8);
+      c.fillStyle = '#1e2228';
+      c.fillRect(0, 0, w * 0.12, h);
+      c.fillStyle = 'rgba(0,0,0,.2)';
+      c.fillRect(0, 0, w, 4);
+      c.fillRect(0, h / 2, w, 4);
+      c.fillRect(0, h - 4, w, 4);
     });
-    const wallMat = two({ map: wallTex, roughness: 0.55 });
-    const capMat = two({ color: 0x2a2d35, roughness: 0.5, metalness: 0.3 });
+    const wallMat = new THREE.MeshStandardMaterial({
+      map: wallTex, roughness: 0.62, metalness: 0.08, side: THREE.DoubleSide, envMapIntensity: 0.2,
+    });
+    const capMat = new THREE.MeshStandardMaterial({
+      color: 0x2a2d35, roughness: 0.45, metalness: 0.35, side: THREE.DoubleSide, envMapIntensity: 0.35,
+    });
     const W0 = WALL + 0.9;
     strip(mergeGeometries([-1, 1].flatMap((s) => [this.ribbon(s * W0, 0, s * W0, 1.25, 8), this.ribbon(s * (W0 + 0.7), 0, s * (W0 + 0.7), 1.25, 8)])), wallMat).castShadow = true;
     strip(mergeGeometries([-1, 1].map((s) => this.ribbon(s * W0, 1.25, s * (W0 + 0.7), 1.25, 8))), capMat);
@@ -290,7 +380,7 @@ export class Track {
         c.fillRect(x * 8, y * 8, 8, 8);
       }
     });
-    const line = put(new THREE.PlaneGeometry(ROAD_HALF * 2, 3), mat(0xffffff, { map: checker, roughness: 0.6 }), this.px[0], 0.04, this.pz[0], g, false);
+    const line = put(new THREE.PlaneGeometry(ROAD_HALF * 2, 3), mat(0xffffff, { map: checker, roughness: 0.6 }), this.px[0], 0.1, this.pz[0], g, false);
     line.rotation.x = -Math.PI / 2;
     const steel = mat(0x2a2d35, { roughness: 0.4, metalness: 0.7 });
     const red = mat(0xc5050c, { roughness: 0.4, metalness: 0.2 });
@@ -349,7 +439,7 @@ export class Track {
       sign.position.set(p.x, 5.5, p.z);
       sign.scale.set(12, 3, 1);
       g.add(sign);
-      const m = put(new THREE.PlaneGeometry(5, 6.5), padMat, p.x, 0.07, p.z, g, false);
+      const m = put(new THREE.PlaneGeometry(5, 6.5), padMat, p.x, 0.12, p.z, g, false);
       m.rotation.set(-Math.PI / 2, 0, Math.PI - this.headingAt(p.idx));
       if (p.jump) {
         const ramp = put(new RoundedBoxGeometry(6.4, 0.6, 5.4, 1, 0.15), rampMat, p.x, 0.5, p.z, g);
@@ -384,37 +474,46 @@ export class Track {
     const sand = new THREE.Color(0xe6d59a);
     const rock = new THREE.Color(0x6f8a5a);
     const c = new THREE.Color();
+    const dirt = new THREE.Color(0x6a5a3a);
+    const asphaltEdge = new THREE.Color(0x3a3c42);
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i);
       const z = p.getZ(i);
-      const y = this.groundY(x, z);
+      const d = this.distToCentre(x, z);
+      const y = this.groundY(x, z, d);
       p.setY(i, y);
       c.copy(grassA).lerp(grassB, smooth(fbm(x * 0.02, z * 0.02) * 1.6 - 0.3));
       c.lerp(dry, smooth(fbm(x * 0.05 + 40, z * 0.05) * 2 - 1.1) * 0.7);
+      c.lerp(dirt, smooth(fbm(x * 0.03 + 9, z * 0.03) * 2 - 0.9) * 0.35);
       c.lerp(rock, smooth((y - 22) / 26));
       c.lerp(sand, smooth((0.4 - y) / 1.4) * smooth((-30 - x) / 12));
+      // Near-track verge reads as dark runoff, not bright lawn under the barriers.
+      c.lerp(asphaltEdge, smooth((WALL + 10 - d) / 8) * 0.85);
       cols.set([c.r, c.g, c.b], i * 3);
     }
     geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
     geo.computeVertexNormals();
-    const detail = tex(256, 256, (x, w, h) => {
-      x.fillStyle = '#e6eedd';
-      x.fillRect(0, 0, w, h);
-      x.lineCap = 'round';
-      for (let i = 0; i < 900; i++) {
-        x.strokeStyle = ['rgba(255,255,255,.55)', 'rgba(186,208,160,.6)', 'rgba(160,190,130,.5)', 'rgba(245,250,236,.6)'][i % 4];
-        x.lineWidth = rand(2, 5);
-        const px = rand(w);
-        const py = rand(h);
-        const a = rand(-0.5, 0.5) - Math.PI / 2;
-        const len = rand(6, 16);
-        x.beginPath();
-        x.moveTo(px, py);
-        x.lineTo(px + Math.cos(a) * len, py + Math.sin(a) * len);
-        x.stroke();
+    const detail = tex(512, 512, (x, w, h) => {
+      const img = x.createImageData(w, h);
+      const d = img.data;
+      for (let y = 0; y < h; y++) {
+        for (let px = 0; px < w; px++) {
+          const i = (y * w + px) * 4;
+          const n = fbm(px * 0.08, y * 0.08, 4);
+          const blade = fbm(px * 0.4, y * 0.15, 2);
+          const v = 170 + n * 55 + blade * 25;
+          d[i] = v * 0.92;
+          d[i + 1] = v;
+          d[i + 2] = v * 0.78;
+          d[i + 3] = 255;
+        }
       }
-    }, 300, 300);
-    const ground = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, map: detail }));
+      x.putImageData(img, 0, 0);
+    }, 180, 180);
+    detail.anisotropy = 4;
+    const ground = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+      vertexColors: true, map: detail, roughness: 0.95, metalness: 0, envMapIntensity: 0.15,
+    }));
     ground.receiveShadow = true;
     ground.userData.keep = true;
     g.add(ground);
@@ -639,21 +738,46 @@ export class Track {
     stad.position.set(104, 0, -105);
     g.add(stad);
 
-    // ---- Buildings: one 10 m window tile, UVs scaled per wall
-    const facade = (wall, frame, glass) => mat(0xffffff, { roughness: 0.65, map: tex(256, 256, (x, w, h) => {
+    // ---- Buildings: denser facade tile with lintels, mullions, and brick/stone grain
+    const facade = (wall, frame, glass) => mat(0xffffff, { roughness: 0.58, map: tex(512, 512, (x, w, h) => {
       x.fillStyle = wall;
       x.fillRect(0, 0, w, h);
-      for (let cx = 0; cx < 4; cx++) for (let cy = 0; cy < 3; cy++) {
-        x.fillStyle = frame;
-        x.fillRect(cx * 64 + 10, cy * 85 + 16, 44, 56);
-        const gr = x.createLinearGradient(0, cy * 85 + 20, 0, cy * 85 + 68);
-        gr.addColorStop(0, glass);
-        gr.addColorStop(1, '#27425c');
-        x.fillStyle = Math.random() < 0.22 ? '#ffe7ad' : gr;
-        x.fillRect(cx * 64 + 14, cy * 85 + 20, 36, 48);
+      // Surface grain
+      for (let i = 0; i < 9000; i++) {
+        const a = 12 + Math.floor(rand(18));
+        x.fillStyle = `rgba(0,0,0,${0.03 + rand(0.05)})`;
+        x.fillRect(rand(w), rand(h), rand(1, 3), rand(1, 2));
+        x.fillStyle = `rgba(255,255,255,${0.02 + rand(0.04)})`;
+        x.fillRect(rand(w), rand(h), 1, 1);
       }
-      x.fillStyle = 'rgba(0,0,0,.12)';
-      for (let cy = 1; cy < 3; cy++) x.fillRect(0, cy * 85 - 3, w, 5);
+      for (let cx = 0; cx < 4; cx++) for (let cy = 0; cy < 4; cy++) {
+        const bx = cx * 128 + 16;
+        const by = cy * 128 + 18;
+        x.fillStyle = frame;
+        x.fillRect(bx, by, 96, 92);
+        // Mullions
+        x.fillStyle = 'rgba(0,0,0,.25)';
+        x.fillRect(bx + 46, by + 6, 4, 80);
+        x.fillRect(bx + 6, by + 44, 84, 3);
+        const gr = x.createLinearGradient(0, by + 8, 0, by + 84);
+        gr.addColorStop(0, glass);
+        gr.addColorStop(0.55, '#3a5a78');
+        gr.addColorStop(1, '#1a3048');
+        x.fillStyle = Math.random() < 0.2 ? '#ffe7ad' : gr;
+        x.fillRect(bx + 8, by + 8, 36, 34);
+        x.fillRect(bx + 52, by + 8, 36, 34);
+        x.fillRect(bx + 8, by + 50, 36, 34);
+        x.fillRect(bx + 52, by + 50, 36, 34);
+        // Window highlight
+        x.fillStyle = 'rgba(255,255,255,.18)';
+        x.fillRect(bx + 10, by + 10, 12, 28);
+        x.fillRect(bx + 54, by + 10, 12, 28);
+      }
+      x.fillStyle = 'rgba(0,0,0,.16)';
+      for (let cy = 1; cy < 4; cy++) x.fillRect(0, cy * 128 - 4, w, 6);
+      // Cornice strip
+      x.fillStyle = 'rgba(255,255,255,.1)';
+      x.fillRect(0, 0, w, 6);
     }) });
     const facades = [
       facade('#b4523f', '#efe3d0', '#9fd0f0'), facade('#e4d8be', '#8f8470', '#a9d6f2'),
