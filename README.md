@@ -101,24 +101,22 @@ If the API is unavailable, races continue without ranking-based modifiers. The s
 
 ## Graphics and Performance
 
-Four graphics presets are available from the title screen.
+The game always runs the **HD** path: soft sun shadows, MSAA, HDR bloom, and sky-based reflections. There is no Low / Medium picker.
 
-| Preset | Configuration |
-|---|---|
-| Auto | Selects settings based on the GPU and dynamically adjusts rendering resolution |
-| Low | Direct rendering with baked contact shadows |
-| Medium | Real-time sun shadows |
-| High | 2048 px shadows, 4x anti-aliasing, and HDR bloom |
+To hold 60 FPS without dropping visual features, the renderer:
 
-Auto mode targets 60 FPS by evaluating rendering performance approximately every 45 frames. Graphics tiers change only between races to avoid recompiling shaders during gameplay.
+- Scales internal resolution silently when frames slip (never demotes the HD tier)
+- Updates the sun shadow map every other frame
+- Keeps foliage on cheap blob shadows so hundreds of trees do not fill the shadow map
+- Batches static scenery into world cells for frustum culling
+- Precaches the shell in a service worker for instant reloads
 
 Additional optimizations include:
 
-- Static scenery batching in 220 m world cells
 - Instanced trees with cell-based culling
-- Pre-rendered sky cubemap
+- Pre-rendered sky cubemap (mipmapped) for background + reflections
 - Shader compilation during loading
-- Service worker caching for repeat loads and offline play
+- Frozen matrices on static meshes
 
 ## Demo and Debug Options
 
@@ -134,7 +132,7 @@ Available parameters:
 |---|---|
 | `auto=N` | Starts an AI-controlled demonstration with N badgers |
 | `skip=S` | Fast-forwards S seconds |
-| `q=low\|medium\|high` | Sets graphics quality |
+| `q=high` | HD is always on (kept for debug URLs) |
 | `front=1` | Enables a front-facing camera |
 | `stats=45` | Logs frame time, draw calls, and triangle counts |
 | `noadapt=1` | Disables automatic resolution scaling |

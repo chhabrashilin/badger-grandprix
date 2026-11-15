@@ -6,7 +6,7 @@
     <title>Badger Grand Prix</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&family=Rowdies:wght@400;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="style.css" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three.module.min.js" } }
@@ -20,11 +20,9 @@
 
     <section id="title" class="screen">
       <div class="panel">
-        <span class="corner-bl" aria-hidden="true"></span>
-        <span class="corner-br" aria-hidden="true"></span>
-        <div class="kicker">Madison Circuit · Race Day</div>
-        <h1>BADGER <span>GRAND PRIX</span></h1>
-        <p class="tag">Choose your badger, load up on power-ups, and take the checkered flag.</p>
+        <div class="kicker">Madison Circuit</div>
+        <h1>BADGER<br><span>GRAND PRIX</span></h1>
+        <p class="tag">Pick a badger. Load power-ups. Take first.</p>
         <div class="row">
           <label>Players</label>
           <div class="seg" id="players">
@@ -43,22 +41,14 @@
             <button data-v="2">2</button><button data-v="3" class="on">3</button><button data-v="5">5</button>
           </div>
         </div>
-        <div class="row">
-          <label>Graphics</label>
-          <div class="seg" id="quality">
-            <button data-v="auto" class="on">Auto</button><button data-v="low">Low</button><button data-v="medium">Med</button><button data-v="high">High</button>
-          </div>
-        </div>
-        <button class="go" id="toSetup">CHOOSE RACERS ▸</button>
+        <button class="go" id="toSetup">CHOOSE RACERS</button>
         <p class="hint" id="controlsHint"></p>
       </div>
     </section>
 
     <section id="setup" class="screen hidden">
       <div class="panel wide">
-        <span class="corner-bl" aria-hidden="true"></span>
-        <span class="corner-br" aria-hidden="true"></span>
-        <div class="kicker" id="setupSteps">1 / 2 RACER + KART</div>
+        <div class="kicker" id="setupSteps">1 / 2 · RACER + KART</div>
         <h2 id="setupTitle">PICK YOUR RACER</h2>
         <p class="boost-tip"><b>GOLD ARROWS = SPEED BOOST.</b> Drive over them. Your blue boost bar also refills on its own.</p>
         <div class="cols">
@@ -71,21 +61,19 @@
         </div>
         <div class="actions">
           <button class="ghost" id="back">◂ Back</button>
-          <button class="ghost hidden" id="tiltBtn">📱 Enable tilt steering</button>
-          <button class="go" id="start">START RACE ▸</button>
+          <button class="ghost hidden" id="tiltBtn">Enable tilt steering</button>
+          <button class="go" id="start">START RACE</button>
         </div>
       </div>
     </section>
 
     <section id="results" class="screen hidden">
       <div class="panel">
-        <span class="corner-bl" aria-hidden="true"></span>
-        <span class="corner-br" aria-hidden="true"></span>
         <h2 id="resultTitle"></h2>
         <ol id="standings"></ol>
         <div class="actions">
           <button class="ghost" id="menu">Main menu</button>
-          <button class="go" id="again">RACE AGAIN ▸</button>
+          <button class="go" id="again">RACE AGAIN</button>
         </div>
       </div>
     </section>

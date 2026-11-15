@@ -57,16 +57,15 @@ function resize() {
   hud.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 addEventListener('resize', resize);
-const startQuality = params.get('q') ?? 'auto';
+// HD is the only path. Debug flags still work for measuring individual costs.
 for (const [flag, key] of [['noshadow', 'shadows'], ['nobloom', 'bloom'], ['noenv', 'env'], ['nomsaa', 'msaa']]) {
-  if (params.has(flag)) gfx.overrides[key] = key === 'shadows' || key === 'msaa' ? 0 : false; // debug: measure one effect's cost
+  if (params.has(flag)) gfx.overrides[key] = key === 'shadows' || key === 'msaa' ? 0 : false;
 }
 gfx.W = innerWidth;
 gfx.H = innerHeight;
-if (params.has('scale')) gfx.scale = +params.get('scale'); // debug: fixed render scale
-gfx.setQuality(startQuality);
+if (params.has('scale')) gfx.scale = +params.get('scale');
+gfx.setQuality('high');
 resize();
-for (const b of $('quality').children) b.classList.toggle('on', b.dataset.v === startQuality);
 
 // ------------------------------------------------------------------ menus
 function show(id) {
@@ -87,7 +86,6 @@ function segmented(id, onPick) {
 segmented('players', (v) => (cfg.nPlayers = +v));
 segmented('difficulty', (v) => (cfg.difficulty = v));
 segmented('laps', (v) => (cfg.laps = +v));
-segmented('quality', (v) => gfx.setQuality(v));
 
 $('controlsHint').innerHTML = input.isTouchDevice()
   ? '<b>Phone:</b> tilt to steer (enable on the next screen), it accelerates for you. Buttons: ITEM, BOOST, DRIFT, BRAKE.'
@@ -120,7 +118,7 @@ const itemHelp = {
 
 function renderCards() {
   $('setupTitle').textContent = setupStep === 0 ? 'PICK YOUR RACER' : 'PICK YOUR POWER-UP';
-  $('setupSteps').textContent = setupStep === 0 ? '1 / 2  RACER + KART' : '2 / 2  STARTING POWER-UP';
+  $('setupSteps').textContent = setupStep === 0 ? '1 / 2 · RACER + KART' : '2 / 2 · STARTING POWER-UP';
   $('start').textContent = setupStep === 0 ? 'NEXT: POWER-UPS' : 'START RACE';
   $('cards').innerHTML = cfg.players.map((p, i) => {
     const options = (list, key, selected) => list.map((o) => {
@@ -180,7 +178,7 @@ $('back').addEventListener('click', () => {
 });
 $('tiltBtn').addEventListener('click', async () => {
   const ok = await input.enableTilt();
-  $('tiltBtn').textContent = ok ? '📱 Tilt steering on' : '📱 Tilt unavailable (needs HTTPS + permission)';
+  $('tiltBtn').textContent = ok ? 'Tilt steering on' : 'Tilt unavailable (needs HTTPS + permission)';
   $('tiltBtn').disabled = true;
 });
 $('start').addEventListener('click', () => {
@@ -269,8 +267,8 @@ function chase(cam, k, dt) {
 }
 
 // ------------------------------------------------------------------ HUD
-const FONT = '"Rowdies", "Impact", sans-serif';
-const UI_FONT = '"M PLUS Rounded 1c", "Segoe UI", sans-serif';
+const FONT = '"Dela Gothic One", Impact, sans-serif';
+const UI_FONT = '"Zen Kaku Gothic New", "Segoe UI", sans-serif';
 const PLACE_GRAD = [['#fff3a8', '#ffb400'], ['#ffffff', '#aab6c4'], ['#ffd2a6', '#c9742e']];
 const mapPts = (() => {
   const b = track.bounds;
@@ -564,7 +562,7 @@ const perf = {
     if (this.frames < this.window) return;
     if (this.n > this.window / 2) {
       this.avg = this.sum / this.n;
-      if (!paused && !document.hidden && !params.has('noadapt')) gfx.adapt(this.avg, this.worst, !race || race.state === 'countdown');
+      if (!paused && !document.hidden && !params.has('noadapt')) gfx.adapt(this.avg, this.worst);
     }
     if (params.has('stats')) {
       console.log(`STATS avg ${this.avg.toFixed(1)}ms worst ${this.worst.toFixed(0)}ms calls ${this.calls} tris ${this.tris} scale ${gfx.scale.toFixed(2)} q ${gfx.qualityName} | js: sim ${(this.sim ?? 0).toFixed(1)} render-submit ${(this.draw ?? 0).toFixed(1)} hud ${(this.hud ?? 0).toFixed(1)}ms`);
@@ -590,7 +588,7 @@ function frame(nowMs) {
   if (drawUi) hud.clearRect(0, 0, W, H);
   track.animate(now);
   raceShow.update(now, dt, race);
-  track.fakeShadows.visible = !gfx.shadowsOn;
+  // Foliage contact blobs stay on; real sun shadows are reserved for track structure + karts.
 
   if (!race) {
     // Attract mode: a slow cinematic orbit over the circuit behind the menus.

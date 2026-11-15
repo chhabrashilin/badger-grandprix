@@ -195,39 +195,62 @@ export class Track {
 
     this.buildTerrain(g);
 
-    // ---- Road surface
-    const asphalt = tex(512, 1024, (c, w, h) => {
-      c.fillStyle = '#2f3138';
+    // ---- Road surface (dense asphalt grain + bump for glancing light)
+    const asphalt = tex(1024, 2048, (c, w, h) => {
+      c.fillStyle = '#2a2c32';
       c.fillRect(0, 0, w, h);
-      for (let i = 0; i < 14000; i++) {
-        const v = 38 + Math.floor(rand(34));
-        c.fillStyle = `rgb(${v},${v + 1},${v + 5})`;
-        c.fillRect(rand(w), rand(h), rand(1, 3), rand(1, 3));
+      for (let i = 0; i < 52000; i++) {
+        const v = 32 + Math.floor(rand(42));
+        c.fillStyle = `rgb(${v},${v + 1},${v + 4})`;
+        c.fillRect(rand(w), rand(h), rand(1, 2.5), rand(1, 2.5));
       }
-      // worn racing line + rubber streaks
+      // Micro chips for photoreal grit under sun
+      for (let i = 0; i < 8000; i++) {
+        const v = 55 + Math.floor(rand(40));
+        c.fillStyle = `rgba(${v},${v + 2},${v + 6},0.55)`;
+        c.fillRect(rand(w), rand(h), 1, 1);
+      }
       const worn = c.createLinearGradient(0, 0, w, 0);
-      worn.addColorStop(0.15, 'rgba(0,0,0,0)');
-      worn.addColorStop(0.5, 'rgba(0,0,0,.22)');
-      worn.addColorStop(0.85, 'rgba(0,0,0,0)');
+      worn.addColorStop(0.12, 'rgba(0,0,0,0)');
+      worn.addColorStop(0.5, 'rgba(0,0,0,.28)');
+      worn.addColorStop(0.88, 'rgba(0,0,0,0)');
       c.fillStyle = worn;
       c.fillRect(0, 0, w, h);
-      c.strokeStyle = 'rgba(10,10,12,.28)';
-      for (let i = 0; i < 9; i++) {
-        c.lineWidth = rand(3, 7);
-        const x = rand(w * 0.2, w * 0.8);
+      c.strokeStyle = 'rgba(8,8,10,.32)';
+      for (let i = 0; i < 14; i++) {
+        c.lineWidth = rand(2, 6);
+        const x = rand(w * 0.18, w * 0.82);
         const y = rand(h);
         c.beginPath();
         c.moveTo(x, y);
-        c.bezierCurveTo(x + rand(-20, 20), y + 120, x + rand(-30, 30), y + 240, x + rand(-40, 40), y + 380);
+        c.bezierCurveTo(x + rand(-24, 24), y + 140, x + rand(-36, 36), y + 280, x + rand(-48, 48), y + 420);
         c.stroke();
       }
-      c.fillStyle = '#f5f5f2';
-      c.fillRect(w * 0.035, 0, w * 0.014, h);
-      c.fillRect(w * 0.951, 0, w * 0.014, h);
-      c.fillStyle = '#ffcf33';
-      c.fillRect(w / 2 - w * 0.007, 0, w * 0.014, h * 0.45);
+      c.fillStyle = '#f7f7f4';
+      c.fillRect(w * 0.03, 0, w * 0.012, h);
+      c.fillRect(w * 0.958, 0, w * 0.012, h);
+      c.fillStyle = '#ffd040';
+      for (let y = 0; y < h; y += h * 0.08) c.fillRect(w / 2 - w * 0.006, y, w * 0.012, h * 0.045);
     });
-    strip(this.ribbon(-ROAD_HALF, 0.02, ROAD_HALF, 0.02, 16), two({ map: asphalt, roughness: 0.78, metalness: 0.05 }));
+    asphalt.anisotropy = 8;
+    asphalt.wrapS = asphalt.wrapT = THREE.RepeatWrapping;
+    const asphaltBump = tex(512, 1024, (c, w, h) => {
+      c.fillStyle = '#808080';
+      c.fillRect(0, 0, w, h);
+      for (let i = 0; i < 28000; i++) {
+        const v = 90 + Math.floor(rand(70));
+        c.fillStyle = `rgb(${v},${v},${v})`;
+        c.fillRect(rand(w), rand(h), rand(1, 2), rand(1, 2));
+      }
+    });
+    asphaltBump.anisotropy = 4;
+    asphaltBump.colorSpace = THREE.NoColorSpace;
+    // Standard material so bump + env catch sun like a real road surface.
+    const roadMat = new THREE.MeshStandardMaterial({
+      map: asphalt, bumpMap: asphaltBump, bumpScale: 0.35,
+      roughness: 0.72, metalness: 0.08, envMapIntensity: 0.55,
+    });
+    strip(this.ribbon(-ROAD_HALF, 0.02, ROAD_HALF, 0.02, 24), roadMat);
 
     // ---- Kerbs
     const kerb = tex(64, 128, (c, w, h) => {
@@ -278,7 +301,7 @@ export class Track {
       c.fillStyle = gr;
       c.fillRect(0, 0, w, h);
       c.fillStyle = '#fff';
-      c.font = 'italic 900 86px Arial';
+      c.font = '700 78px "Dela Gothic One", Impact, sans-serif';
       c.textAlign = 'center';
       c.textBaseline = 'middle';
       c.fillText('BADGER GRAND PRIX', w / 2, h / 2 + 4);
@@ -314,10 +337,10 @@ export class Track {
       c.fillStyle = '#ffe366';
       c.fillRect(0, 0, w, h);
       c.fillStyle = '#111827';
-      c.font = 'bold 48px Arial, sans-serif';
+      c.font = '700 46px "Dela Gothic One", Impact, sans-serif';
       c.textAlign = 'center';
       c.fillText('SPEED BOOST >>', w / 2, 62);
-      c.font = 'bold 24px Arial, sans-serif';
+      c.font = '800 22px "Zen Kaku Gothic New", sans-serif';
       c.fillText('DRIVE OVER GOLD ARROWS', w / 2, 103);
     });
     const signMat = new THREE.SpriteMaterial({ map: boostSign, depthTest: true });
@@ -414,7 +437,10 @@ export class Track {
     ripple.colorSpace = THREE.NoColorSpace;
     const water = new THREE.Mesh(
       new THREE.PlaneGeometry(6000, 6000),
-      new THREE.MeshStandardMaterial({ color: 0x1c74c9, roughness: 0.1, metalness: 0.35, bumpMap: ripple, bumpScale: 1.4 }),
+      new THREE.MeshStandardMaterial({
+        color: 0x1a6fbf, roughness: 0.08, metalness: 0.55,
+        bumpMap: ripple, bumpScale: 1.2, envMapIntensity: 1.1,
+      }),
     );
     water.rotation.x = -Math.PI / 2;
     water.position.set(-800, WATER_Y, 0);
@@ -484,7 +510,7 @@ export class Track {
       c.fillStyle = fg;
       c.fillRect(0, 0, w, 8);
       c.fillRect(0, h - 8, w, 8);
-      c.font = 'italic 900 64px Arial';
+      c.font = '700 58px "Dela Gothic One", Impact, sans-serif';
       c.textAlign = 'center';
       c.textBaseline = 'middle';
       c.fillText(text, w / 2, h / 2 + 3);
@@ -818,8 +844,12 @@ export class Track {
       if (!list.length) return;
       const mesh = new THREE.InstancedMesh(geo, material, list.length);
       list.forEach((t, i) => place(t, i, mesh));
-      mesh.castShadow = mesh.receiveShadow = true;
-      mesh.computeBoundingSphere(); // lets the renderer cull the whole cell
+      // Foliage uses baked blob shadows — casting hundreds of tree shadows
+      // into the sun map is the main HD stall. Buildings / walls still cast.
+      mesh.castShadow = false;
+      mesh.receiveShadow = true;
+      mesh.computeBoundingSphere();
+      mesh.matrixAutoUpdate = false;
       g.add(mesh);
     };
     const leaf = (t, i, mesh) => {
@@ -847,10 +877,15 @@ export class Track {
       m4.compose(v.set(t.x + 1.4 * t.sx, t.y + 0.12, t.z - 1.2 * t.sx), q.identity(), sc.set(7.5 * t.sx, 1, 7.5 * t.sx));
       decals.setMatrixAt(i, m4);
     });
-    decals.frustumCulled = false;
+    decals.frustumCulled = true;
+    decals.computeBoundingSphere();
+    decals.boundingSphere.radius += 12;
     decals.renderOrder = 1;
+    decals.matrixAutoUpdate = false;
     g.add(decals);
+    // Always keep foliage contact blobs — trees no longer cast real shadows.
     this.fakeShadows = decals;
+    this.fakeShadows.visible = true;
 
     for (const c of cells.values()) {
       instanced(roundGeo, leafMat, c.round, leaf);

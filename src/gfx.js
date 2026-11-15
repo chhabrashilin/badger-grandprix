@@ -1,6 +1,6 @@
-// Rendering pipeline: HDR + ACES tone mapping, sun shadows, bloom, a procedural
-// sky that is rendered once into a cached cubemap, sky-based reflections, and
-// automatic resolution / quality scaling to hold the frame rate.
+// Rendering pipeline: single HD path with ACES tone mapping, cached sky cubemap,
+// soft sun shadows (updated on a budget), bloom, and silent resolution scaling
+// that never drops the quality tier.
 import * as THREE from 'three';
 import { EffectComposer } from '../vendor/addons/postprocessing/EffectComposer.js';
 import { Pass } from '../vendor/addons/postprocessing/Pass.js';
@@ -8,25 +8,22 @@ import { UnrealBloomPass } from '../vendor/addons/postprocessing/UnrealBloomPass
 import { OutputPass } from '../vendor/addons/postprocessing/OutputPass.js';
 
 /**
- * ratio: max device-pixel ratio. env: sky reflections on shiny surfaces.
- * Low and Medium draw straight to the screen; only High pays for the HDR bloom chain.
+ * One locked HD preset. Resolution still scales under load, but shadows / bloom /
+ * MSAA / env stay on so the game always looks like the High build.
  */
 export const QUALITY = {
-  low: { ratio: 1, shadows: 0, bloom: false, msaa: 0, env: true },
-  medium: { ratio: 1.25, shadows: 1024, bloom: false, msaa: 0, env: true },
-  high: { ratio: 1.5, shadows: 2048, bloom: true, msaa: 4, env: true },
+  high: { ratio: 1.75, shadows: 2048, bloom: true, msaa: 2, env: true },
 };
-const TIERS = ['low', 'medium', 'high'];
-const MIN_SCALE = 0.6;
+const MIN_SCALE = 0.72;
 
-const SUN_DIR = new THREE.Vector3(-0.52, 0.72, 0.46).normalize();
-const HAZE = 0xcfe4f6;
+const SUN_DIR = new THREE.Vector3(-0.48, 0.78, 0.4).normalize();
+const HAZE = 0xb9d4ea;
 
 const SKY_VERT = /* glsl */ `
   varying vec3 vDir;
   void main() {
     vDir = position;
-    vec4 p = viewMatrix * vec4(position, 0.0); // rotation only
+    vec4 p = viewMatrix * vec4(position, 0.0);
     gl_Position = projectionMatrix * vec4(p.xyz, 1.0);
     gl_Position.z = gl_Position.w;
   }`;
@@ -48,30 +45,26 @@ const SKY_FRAG = /* glsl */ `
   }
   void main() {
     vec3 d = normalize(vDir);
-    vec3 col = mix(horizon, zenith, pow(max(d.y, 0.0), 0.55));
-    col = mix(haze, col, smoothstep(0.0, 0.22, d.y));
+    vec3 col = mix(horizon, zenith, pow(max(d.y, 0.0), 0.62));
+    col = mix(haze, col, smoothstep(0.0, 0.18, d.y));
     float s = max(dot(d, sunDir), 0.0);
-    col += vec3(1.0, 0.86, 0.62) * pow(s, 10.0) * 0.22;
-    if (d.y > 0.015) {
-      // Puffy cumulus: a broad coverage mask carved by finer detail
-      vec2 uv = d.xz / (d.y + 0.16) * 2.4;
-      float cover = fbm(uv * 0.45);
-      float detail = fbm(uv * 1.9 + 3.0);
-      float c = smoothstep(0.50, 0.60, cover * 0.72 + detail * 0.34);
-      float thick = smoothstep(0.50, 0.78, cover * 0.72 + detail * 0.34);
-      float towardSun = fbm(uv * 1.9 + 3.0 + sunDir.xz * 0.5);
-      vec3 cloud = mix(vec3(0.99, 0.98, 0.96), vec3(0.66, 0.73, 0.86), thick * 0.75 + (detail - towardSun) * 1.2);
-      col = mix(col, cloud, c * smoothstep(0.015, 0.16, d.y));
+    col += vec3(1.0, 0.88, 0.68) * pow(s, 8.0) * 0.28;
+    if (d.y > 0.012) {
+      vec2 uv = d.xz / (d.y + 0.14) * 2.2;
+      float cover = fbm(uv * 0.42);
+      float detail = fbm(uv * 1.85 + 3.0);
+      float c = smoothstep(0.48, 0.58, cover * 0.72 + detail * 0.34);
+      float thick = smoothstep(0.48, 0.76, cover * 0.72 + detail * 0.34);
+      float towardSun = fbm(uv * 1.85 + 3.0 + sunDir.xz * 0.5);
+      vec3 cloud = mix(vec3(1.0, 0.99, 0.97), vec3(0.62, 0.70, 0.84), thick * 0.72 + (detail - towardSun) * 1.15);
+      col = mix(col, cloud, c * smoothstep(0.012, 0.14, d.y));
     }
-    col += vec3(1.0, 0.93, 0.78) * pow(s, 900.0) * 9.0 * disc;
-    if (d.y < 0.0) col = mix(haze, vec3(0.30, 0.40, 0.22), smoothstep(0.0, -0.35, d.y));
+    col += vec3(1.0, 0.94, 0.8) * pow(s, 700.0) * 10.0 * disc;
+    if (d.y < 0.0) col = mix(haze, vec3(0.28, 0.38, 0.2), smoothstep(0.0, -0.35, d.y));
     gl_FragColor = vec4(col, 1.0);
   }`;
 
-/**
- * The sky shader is expensive per pixel, so it is rendered exactly once into a
- * cubemap. Every frame after that the sky is a single texture lookup.
- */
+/** Bake the expensive sky shader once into a cubemap. */
 function bakeSky(renderer, size, disc) {
   const mat = new THREE.ShaderMaterial({
     vertexShader: SKY_VERT,
@@ -80,24 +73,27 @@ function bakeSky(renderer, size, disc) {
     depthWrite: false,
     uniforms: {
       sunDir: { value: SUN_DIR },
-      zenith: { value: new THREE.Color(0x1763d6) },
-      horizon: { value: new THREE.Color(0x8fc6f5) },
+      zenith: { value: new THREE.Color(0x1a6fe0) },
+      horizon: { value: new THREE.Color(0x9ecff5) },
       haze: { value: new THREE.Color(HAZE) },
       disc: { value: disc },
     },
   });
   const scene = new THREE.Scene();
-  const sky = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), mat);
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 24), mat);
   sky.frustumCulled = false;
   scene.add(sky);
-  const target = new THREE.WebGLCubeRenderTarget(size, { type: THREE.HalfFloatType, generateMipmaps: false, minFilter: THREE.LinearFilter });
+  const target = new THREE.WebGLCubeRenderTarget(size, {
+    type: THREE.HalfFloatType,
+    generateMipmaps: true,
+    minFilter: THREE.LinearMipmapLinearFilter,
+  });
   new THREE.CubeCamera(0.1, 10, target).update(renderer, scene);
   sky.geometry.dispose();
   mat.dispose();
   return target;
 }
 
-/** Renders every split-screen view into the composer's buffer. */
 class MultiViewPass extends Pass {
   constructor(gfx) {
     super();
@@ -129,7 +125,6 @@ class MultiViewPass extends Pass {
   }
 }
 
-/** Integrated / mobile GPUs start one tier lower. */
 function looksIntegrated(gl) {
   try {
     const ext = gl.getExtension('WEBGL_debug_renderer_info');
@@ -141,87 +136,112 @@ function looksIntegrated(gl) {
 }
 
 export function createGfx(canvas) {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: false });
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: false,
+    powerPreference: 'high-performance',
+    stencil: false,
+    depth: true,
+  });
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
-  renderer.shadowMap.type = THREE.PCFShadowMap;
-  renderer.info.autoReset = false; // counted per frame by the caller
+  renderer.toneMappingExposure = 1.12;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.autoUpdate = false;
+  renderer.info.autoReset = false;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
 
+  const maxAniso = renderer.capabilities.getMaxAnisotropy();
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(HAZE, 280, 2000);
-  scene.background = bakeSky(renderer, 1024, 1).texture;
+  scene.fog = new THREE.Fog(HAZE, 420, 2600);
+  const skyCube = bakeSky(renderer, 1024, 1);
+  scene.background = skyCube.texture;
 
-  // Image-based lighting from a small sky capture without the sun disc (avoids fireflies).
   const pmrem = new THREE.PMREMGenerator(renderer);
-  const envCube = bakeSky(renderer, 128, 0);
+  const envCube = bakeSky(renderer, 256, 0);
   const envTexture = pmrem.fromCubemap(envCube.texture).texture;
   envCube.dispose();
   pmrem.dispose();
 
-  const sun = new THREE.DirectionalLight(0xfff0d8, 2.7);
-  sun.shadow.bias = -0.0006;
-  sun.shadow.normalBias = 0.4;
+  const sun = new THREE.DirectionalLight(0xfff2dc, 3.15);
+  sun.shadow.bias = -0.00035;
+  sun.shadow.normalBias = 0.28;
+  sun.shadow.radius = 2.2;
   scene.add(sun, sun.target);
-  const hemi = new THREE.HemisphereLight(0xcfe2ff, 0xb9c39a, 2.5); // sky/ground ambient for the diffuse materials
+  const hemi = new THREE.HemisphereLight(0xd4e8ff, 0xa8b888, 1.85);
   scene.add(hemi);
+  // Soft fill so shadowed asphalt still reads like daylight photography.
+  const fill = new THREE.DirectionalLight(0xb8d0f0, 0.35);
+  fill.position.set(SUN_DIR.x * -80, 40, SUN_DIR.z * -80);
+  scene.add(fill);
 
   const gfx = {
-    renderer, scene, sun, W: 1, H: 1,
-    quality: QUALITY.medium, qualityName: 'medium', auto: true, scale: 1, views: 1,
+    renderer, scene, sun, W: 1, H: 1, maxAniso,
+    quality: QUALITY.high, qualityName: 'high', auto: true, scale: 1, views: 1,
     composer: null, pass: null, bloom: null, integrated: looksIntegrated(renderer.getContext()),
-    bad: 0, good: 0, raises: 2, overrides: {},
+    bad: 0, good: 0, raises: 4, overrides: {},
+    _frame: 0, _shadowFocus: new THREE.Vector3(1e9, 0, 0),
     get shadowsOn() {
       return this.quality.shadows > 0;
     },
 
-    /** Centre the sun's shadow frustum on a point of interest. */
+    /** Tag textures for sharp glancing-angle road detail. */
+    sharpen(tex) {
+      if (!tex) return tex;
+      tex.anisotropy = Math.min(8, maxAniso);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.needsUpdate = true;
+      return tex;
+    },
+
     aimSun(focus, range = 60) {
+      const moved = this._shadowFocus.distanceToSquared(focus) > 4;
       sun.target.position.set(focus.x, 0, focus.z);
-      sun.position.copy(sun.target.position).addScaledVector(SUN_DIR, 260);
+      sun.position.copy(sun.target.position).addScaledVector(SUN_DIR, 280);
       sun.target.updateMatrixWorld();
       const c = sun.shadow.camera;
       if (c.right !== range) {
         c.left = c.bottom = -range;
         c.right = c.top = range;
-        c.near = 20;
-        c.far = 560;
+        c.near = 18;
+        c.far = 600;
         c.updateProjectionMatrix();
+        renderer.shadowMap.needsUpdate = true;
+      } else if (moved) {
+        this._shadowFocus.copy(focus);
+        renderer.shadowMap.needsUpdate = true;
       }
     },
 
-    /** 'auto' picks a tier for this GPU and keeps adjusting; a named tier is held. */
+    /** Always HD. `auto` only enables silent resolution scaling. */
     setQuality(name) {
-      this.auto = name === 'auto';
-      // Integrated graphics start on the lightest tier at reduced resolution; the scaler takes it from there.
-      if (this.auto && this.integrated && this.scale === 1) this.scale = 0.8;
-      this.applyTier(this.auto ? (this.integrated ? 'low' : 'high') : name);
-      this.raises = 2;
+      this.auto = name === 'auto' || name === 'high' || !name;
+      if (this.auto && this.integrated && this.scale === 1) this.scale = 0.88;
+      this.applyTier('high');
+      this.raises = 4;
     },
 
-    applyTier(name) {
-      const q = { ...(QUALITY[name] ?? QUALITY.medium), ...this.overrides };
+    applyTier() {
+      const q = { ...QUALITY.high, ...this.overrides };
       this.quality = q;
-      this.qualityName = name;
+      this.qualityName = 'high';
       renderer.shadowMap.enabled = q.shadows > 0;
       sun.castShadow = q.shadows > 0;
       scene.environment = q.env ? envTexture : null;
       this.sizeShadows();
-      scene.traverse((o) => {
-        if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true;
-      });
       this.bad = this.good = 0;
       this.resize(this.W, this.H);
     },
 
-    /** Each split-screen view renders its own shadow map, so shrink it as views are added. */
     sizeShadows() {
       const q = this.quality;
       if (!q.shadows) return;
-      const size = this.views > 2 ? Math.min(q.shadows, 1024) : q.shadows;
+      // Split-screen shares one sun: shrink the map so four views stay fluid.
+      const size = this.views > 2 ? Math.min(q.shadows, 1024) : this.views > 1 ? Math.min(q.shadows, 1536) : q.shadows;
       if (sun.shadow.mapSize.x !== size) {
         sun.shadow.mapSize.set(size, size);
         sun.shadow.map?.dispose();
         sun.shadow.map = null;
+        renderer.shadowMap.needsUpdate = true;
       }
     },
 
@@ -237,32 +257,32 @@ export function createGfx(canvas) {
       this.bloom?.dispose();
       this.composer = null;
       if (q.bloom) {
-        const target = new THREE.WebGLRenderTarget(W * pr, H * pr, { type: THREE.HalfFloatType, samples: q.msaa });
+        const target = new THREE.WebGLRenderTarget(Math.max(1, W * pr), Math.max(1, H * pr), {
+          type: THREE.HalfFloatType,
+          samples: q.msaa,
+        });
         this.composer = new EffectComposer(renderer, target);
         this.composer.setPixelRatio(pr);
         this.composer.setSize(W, H);
         this.pass = new MultiViewPass(this);
-        this.bloom = new UnrealBloomPass(new THREE.Vector2(W, H), 0.26, 0.6, 1.1);
+        this.bloom = new UnrealBloomPass(new THREE.Vector2(W, H), 0.22, 0.55, 1.05);
         this.composer.addPass(this.pass);
         this.composer.addPass(this.bloom);
         this.composer.addPass(new OutputPass());
-        this.bloom.setSize((W * pr) / 2, (H * pr) / 2); // bloom is blurry anyway: run it at half resolution
+        this.bloom.setSize((W * pr) / 2, (H * pr) / 2);
       }
+      renderer.shadowMap.needsUpdate = true;
     },
 
     /**
-     * Feed in the average frame time (ms) of the last window. Lowers render
-     * resolution when frames are slow, then drops a quality tier if that is
-     * not enough; creeps resolution back up (a limited number of times) when
-     * there is headroom.
+     * Silent resolution scaler. Never demotes the HD tier — only the internal
+     * render scale moves, so the game always keeps shadows + bloom + MSAA.
      */
-    adapt(avgMs, worstMs = avgMs, canChangeTier = true) {
-      // On a 60 Hz display the best possible average is 16.7 ms; above ~18 ms frames are being dropped.
+    adapt(avgMs, worstMs = avgMs) {
       if (avgMs > 19) {
         this.good = 0;
         if (++this.bad < 2) return;
         this.bad = 0;
-        // If the last cut in resolution bought nothing, pixels are not the bottleneck: undo it and stop cutting.
         if (this.before && avgMs > this.before - 1) {
           this.scale = this.beforeScale;
           this.floor = this.beforeScale;
@@ -273,20 +293,16 @@ export function createGfx(canvas) {
         if (this.scale > Math.max(MIN_SCALE, this.floor ?? 0) + 0.01) {
           this.before = avgMs;
           this.beforeScale = this.scale;
-          this.scale = Math.max(MIN_SCALE, this.scale - (avgMs > 26 ? 0.2 : 0.1));
+          this.scale = Math.max(MIN_SCALE, this.scale - (avgMs > 26 ? 0.12 : 0.08));
           this.resize(this.W, this.H);
-        } else if (this.auto && canChangeTier && this.qualityName !== 'low') {
-          // Recompiles every shader, so only done between races.
-          this.scale = 0.8;
-          this.applyTier(TIERS[TIERS.indexOf(this.qualityName) - 1]);
         }
-      } else if (avgMs < 17.2 && worstMs < 26) {
+      } else if (avgMs < 16.8 && worstMs < 24) {
         this.bad = 0;
         this.before = 0;
-        if (++this.good >= 8 && this.scale < 1 && this.raises > 0) {
+        if (++this.good >= 6 && this.scale < 1 && this.raises > 0) {
           this.good = 0;
           this.raises--;
-          this.scale = Math.min(1, this.scale + 0.1);
+          this.scale = Math.min(1, this.scale + 0.08);
           this.resize(this.W, this.H);
         }
       } else {
@@ -294,22 +310,25 @@ export function createGfx(canvas) {
       }
     },
 
-    /**
-     * Draw one real frame so every shader (scene, shadows, post-processing) is
-     * compiled and every texture uploaded before play starts. Blocking by design:
-     * call it behind a loading screen.
-     */
     warmUp(views) {
+      renderer.shadowMap.needsUpdate = true;
       this.render(views);
       renderer.getContext().finish();
     },
 
-    /** @param views [{ rect: [x, y, w, h] in CSS px (top-left origin), camera, focus: {x, z}, range? }] */
+    /** @param views [{ rect, camera, focus, range? }] */
     render(views) {
       if (views.length !== this.views) {
         this.views = views.length;
         this.sizeShadows();
       }
+      this._frame++;
+      // Refresh the shadow map every other frame (every frame for the first few
+      // after a resize / warm-up). Cuts the shadow pass roughly in half.
+      if (this._frame <= 3 || (this._frame & 1) === 0) {
+        renderer.shadowMap.needsUpdate = true;
+      }
+
       if (this.composer) {
         this.pass.views = views;
         this.composer.render();
