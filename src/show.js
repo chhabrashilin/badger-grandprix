@@ -224,7 +224,7 @@ export class Show {
       c.fillStyle = '#c5050c';
       c.fillRect(0, 0, w, h * 0.22);
       c.fillRect(0, h * 0.78, w, h * 0.22);
-      c.font = '900 54px Arial';
+      c.font = '700 52px Rowdies, Impact, sans-serif';
       c.textAlign = 'center';
       c.textBaseline = 'middle';
       for (const x of [0, w * 0.5, w]) c.fillText('BADGER GP', x, h / 2 + 3); // u = 0 and 0.5 are the two flanks
@@ -287,15 +287,15 @@ export class Show {
     c.fillStyle = '#fff';
     c.textBaseline = 'middle';
     c.textAlign = 'left';
-    c.font = 'italic 900 30px Arial';
+    c.font = '700 28px Rowdies, Impact, sans-serif';
     if (!race) {
       c.fillText('BADGER GRAND PRIX', 16, 24);
-      c.font = 'italic 900 58px Arial';
+      c.font = '700 56px Rowdies, Impact, sans-serif';
       c.textAlign = 'center';
       c.fillStyle = '#ffd23f';
       c.fillText('RACE DAY', w / 2, 120);
       c.fillStyle = '#fff';
-      c.font = '700 26px Arial';
+      c.font = '800 22px "M PLUS Rounded 1c", sans-serif';
       c.fillText('MADISON CIRCUIT', w / 2, 190);
     } else {
       const lead = race.order[0];
@@ -305,10 +305,10 @@ export class Show {
         c.fillStyle = k.human >= 0 ? '#c5050c' : 'rgba(255,255,255,.08)';
         c.fillRect(12, y - 19, w - 24, 38);
         c.fillStyle = '#ffd23f';
-        c.font = 'italic 900 30px Arial';
+        c.font = '700 28px Rowdies, Impact, sans-serif';
         c.fillText(String(i + 1), 24, y + 1);
         c.fillStyle = '#fff';
-        c.font = '700 27px Arial';
+        c.font = '800 24px "M PLUS Rounded 1c", sans-serif';
         c.fillText(k.name.toUpperCase().slice(0, 24), 64, y + 1);
       });
     }

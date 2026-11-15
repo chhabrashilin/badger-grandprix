@@ -1,7 +1,7 @@
 // Caches the game so repeat visits load instantly and work offline.
 // Vendor libraries and fonts never change: cache-first.
 // The game's own files: network-first (so edits show up), falling back to cache offline.
-const CACHE = 'badger-gp-v1';
+const CACHE = 'badger-gp-v2';
 const IMMUTABLE = /\/vendor\/|fonts\.(googleapis|gstatic)\.com/;
 
 self.addEventListener('install', () => self.skipWaiting());

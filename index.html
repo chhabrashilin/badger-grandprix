@@ -6,7 +6,7 @@
     <title>Badger Grand Prix</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&family=Rowdies:wght@400;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="style.css" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three.module.min.js" } }
@@ -20,9 +20,11 @@
 
     <section id="title" class="screen">
       <div class="panel">
-        <div class="kicker">MADISON CIRCUIT</div>
+        <span class="corner-bl" aria-hidden="true"></span>
+        <span class="corner-br" aria-hidden="true"></span>
+        <div class="kicker">Madison Circuit · Race Day</div>
         <h1>BADGER <span>GRAND PRIX</span></h1>
-        <p class="tag">Pick a racer. Grab items. Take first place.</p>
+        <p class="tag">Choose your badger, load up on power-ups, and take the checkered flag.</p>
         <div class="row">
           <label>Players</label>
           <div class="seg" id="players">
@@ -54,6 +56,8 @@
 
     <section id="setup" class="screen hidden">
       <div class="panel wide">
+        <span class="corner-bl" aria-hidden="true"></span>
+        <span class="corner-br" aria-hidden="true"></span>
         <div class="kicker" id="setupSteps">1 / 2 RACER + KART</div>
         <h2 id="setupTitle">PICK YOUR RACER</h2>
         <p class="boost-tip"><b>GOLD ARROWS = SPEED BOOST.</b> Drive over them. Your blue boost bar also refills on its own.</p>
@@ -75,6 +79,8 @@
 
     <section id="results" class="screen hidden">
       <div class="panel">
+        <span class="corner-bl" aria-hidden="true"></span>
+        <span class="corner-br" aria-hidden="true"></span>
         <h2 id="resultTitle"></h2>
         <ol id="standings"></ol>
         <div class="actions">
