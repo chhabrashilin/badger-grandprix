@@ -151,8 +151,8 @@ export class Track {
   groundY(x, z, d = this.distToCentre(x, z)) {
     const hill = smooth((d - 120) / 170) * (fbm(x * 0.006 + 5, z * 0.006 + 9) * 58 - 9);
     const shore = smooth((-36 - x) / 44);
-    // Sink a trench under the asphalt so grass never z-fights through the road.
-    const trench = smooth((WALL + 4 - d) / 5) * 0.55;
+    // Sink only under the asphalt ribbon; verge beside the barriers stays green lawn.
+    const trench = smooth((ROAD_HALF + 1.2 - d) / 2.5) * 0.55;
     return hill * (1 - shore) - shore * 7 - 0.07 - trench;
   }
 
@@ -303,23 +303,6 @@ export class Track {
       side: THREE.DoubleSide,
     });
     strip(this.ribbon(-ROAD_HALF, 0.08, ROAD_HALF, 0.08, 18, { up: true }), roadMat);
-
-    // Runoff shoulder between asphalt and barriers
-    const shoulder = tex(256, 512, (c, w, h) => {
-      c.fillStyle = '#3a3c40';
-      c.fillRect(0, 0, w, h);
-      for (let i = 0; i < 12000; i++) {
-        const v = 40 + Math.floor(rand(50));
-        c.fillStyle = `rgb(${v},${v - 2},${v - 4})`;
-        c.fillRect(rand(w), rand(h), rand(1, 3), rand(1, 3));
-      }
-    });
-    const shoulderMat = new THREE.MeshStandardMaterial({
-      map: shoulder, roughness: 0.92, metalness: 0.02, side: THREE.DoubleSide,
-    });
-    strip(mergeGeometries([-1, 1].map((s) => this.ribbon(
-      s * ROAD_HALF, 0.05, s * (WALL - 0.2), 0.05, 14, { up: true },
-    ))), shoulderMat);
 
     // ---- Kerbs
     const kerb = tex(128, 256, (c, w, h) => {
@@ -475,7 +458,6 @@ export class Track {
     const rock = new THREE.Color(0x6f8a5a);
     const c = new THREE.Color();
     const dirt = new THREE.Color(0x6a5a3a);
-    const asphaltEdge = new THREE.Color(0x3a3c42);
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i);
       const z = p.getZ(i);
@@ -487,8 +469,6 @@ export class Track {
       c.lerp(dirt, smooth(fbm(x * 0.03 + 9, z * 0.03) * 2 - 0.9) * 0.35);
       c.lerp(rock, smooth((y - 22) / 26));
       c.lerp(sand, smooth((0.4 - y) / 1.4) * smooth((-30 - x) / 12));
-      // Near-track verge reads as dark runoff, not bright lawn under the barriers.
-      c.lerp(asphaltEdge, smooth((WALL + 10 - d) / 8) * 0.85);
       cols.set([c.r, c.g, c.b], i * 3);
     }
     geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
