@@ -15,7 +15,9 @@ function soft(color, o = {}) {
   const { roughness, metalness, ...rest } = o;
   return new THREE.MeshLambertMaterial({ color, ...rest });
 }
-const carPaint = (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.22, metalness: 0.45 });
+const carPaint = (color) => new THREE.MeshStandardMaterial({
+  color, roughness: 0.18, metalness: 0.62, envMapIntensity: 1.15,
+});
 const glow = (color, intensity) => new THREE.MeshStandardMaterial({ color: 0x111111, emissive: color, emissiveIntensity: intensity });
 
 const FLAME_NITRO = new THREE.Color(0x4fc4ff).multiplyScalar(4);
